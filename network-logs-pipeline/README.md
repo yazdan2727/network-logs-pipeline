@@ -200,6 +200,3 @@ The tests cover data quality, mart uniqueness, and ingestion and aggregation ide
 
 Database credentials belong in `.env`, which must not be committed. The source CSV and generated log files are also excluded from Git.
 
-## Author
-
-Developed as a data engineering take-home project.

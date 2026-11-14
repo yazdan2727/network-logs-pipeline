@@ -1,0 +1,44 @@
+from sqlalchemy import text
+
+from src.pipeline.aggregate import aggregate_batch
+
+
+def get_mart_snapshot(engine, batch_id):
+    query = text("""
+        SELECT
+            mart.event_date,
+            mart.src_ip::TEXT,
+            mart.total_events,
+            mart.total_bytes,
+            ROUND(mart.avg_bytes::NUMERIC, 8),
+            mart.error_events
+        FROM mart_daily_network_stats mart
+        WHERE mart.event_date IN (
+            SELECT DISTINCT
+                (timestamp AT TIME ZONE 'UTC')::DATE
+            FROM stg_network_logs
+            WHERE batch_id = :batch_id
+        )
+        ORDER BY mart.event_date, mart.src_ip
+    """)
+
+    with engine.connect() as connection:
+        return [
+            tuple(row)
+            for row in connection.execute(
+                query,
+                {"batch_id": batch_id},
+            ).all()
+        ]
+
+
+def test_aggregation_is_idempotent(engine, batch_id):
+    # First execution.
+    aggregate_batch(batch_id)
+    first_snapshot = get_mart_snapshot(engine, batch_id)
+
+    # Second execution.
+    aggregate_batch(batch_id)
+    second_snapshot = get_mart_snapshot(engine, batch_id)
+
+    assert first_snapshot == second_snapshot
